@@ -1,0 +1,19 @@
+{
+  "name": "dixcord-bot-unfurler",
+  "version": "1.0.0",
+  "description": "Standalone high-speed link unfurler API (chat/web embed previews)",
+  "type": "module",
+  "private": true,
+  "main": "index.js",
+  "scripts": {
+    "dev": "node --watch index.js",
+    "start": "node index.js"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "cors": "^2.8.6",
+    "dotenv": "^18.0.10",
+    "express": "^5.3.0",
+    "helmet": "^8.3.0"
+  }
+}
