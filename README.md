@@ -45,7 +45,7 @@ Use the per-site routes when the caller already knows which site a link belongs 
 
 ## Requesting-service detection
 
-Routes try to detect which bot is calling via the request's `User-Agent` header (`req.requestingService`, one of `"discord"`, `"fluxer"`, or `"unknown"`), matched by a case-insensitive substring (`discord` / `fluxer`). This is best-effort: a caller's HTTP client must identify itself in its `User-Agent` (e.g. `dixcord-bot-discord/1.0`) for this to resolve — a bare axios/fetch default UA will detect as `"unknown"`.
+Routes try to detect which service is making a request by the request's `User-Agent` header (`req.requestingService`, one of `"discord"`, `"fluxer"`, or `"unknown"`), matched by a case-insensitive substring (`discord` / `fluxer`). This is best-effort: a caller's HTTP client must identify itself in its `User-Agent` for this to resolve — a bare axios/fetch default UA will detect as `"unknown"`.
 
 The detected service is currently echoed back as metadata only (`requestingService` field in the response). Preview field lengths are the same for every caller regardless of detection — Discord's and `@fluxerjs/builders`' embed limits are identical (title 256 / description 4096 / fields 25 / field name 256 / field value 1024 / footer 2048 / author 256 / total 6000), so there's no real per-platform divergence to apply. Instead, all responses use one shorter preview-length budget (see `lib/previewFormat.js`) since a link-preview card never needs the full embed description budget either platform allows.
 
