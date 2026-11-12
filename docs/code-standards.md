@@ -8,10 +8,18 @@ ESM (`"type": "module"`), explicit `.js` extensions on relative imports, double 
 
 ## Layout — where new code goes
 
-- `routes/<site>.js` — **thin**: extract/validate the url, call the matching `lib/sites/<site>.js` function, map its `{status, body}` to `res`. No fetch/parse logic here.
-- `lib/sites/<site>.js` — one file per site. Exports a `<SITE>_HOSTS` Set and an `async unfurlX(parsedUrl, requestingService)` that returns `{ status, body }` and never throws for *expected* failures (bad response, unparsable payload, login wall) — only a genuine bug should reach the route's `try/catch`.
+- `routes/<site>.js` — **thin**: extract/validate the url, call `runUnfurl({ site, unfurl }, parsedUrl, req.requestingService)` from `lib/unfurlRunner.js`, set `X-Cache`, map `{status, body}` to `res`. No fetch/parse logic here, and never call a site's `unfurlX` directly — the runner is where caching, the concurrency cap, and fetch-error mapping live.
+- `lib/sites/<site>.js` — one file per site. Exports a `<SITE>_HOSTS` Set and an `async unfurlX(parsedUrl, requestingService)` that returns `{ status, body }` and never throws for *expected* failures (bad response, unparsable payload, login wall). `UnfurlFetchError` from `httpFetch.js` is the one exception: let it propagate; the runner turns it into a 502/504 body.
 - `lib/siteRegistry.js` — add new sites here too, so the generic `/api/unfurl` dispatch route picks them up automatically.
-- `lib/*.js` — shared helpers only (`httpFetch.js`, `ogScrape.js`, `previewFormat.js`, `validateUrl.js`, `requestingService.js`). Don't duplicate one of these into a site file.
+- `lib/*.js` — shared helpers only (`httpFetch.js`, `ogScrape.js`, `previewFormat.js`, `validateUrl.js`, `requestingService.js`, `unfurlRunner.js`, `cache.js`, `rateLimit.js`, `redisClient.js`). Don't duplicate one of these into a site file.
+
+## Outbound fetches — security rules
+
+- **Every** outbound request goes through `fetchJson` / `fetchHtml` (or `fetchWithTimeout` for HEAD) from `lib/httpFetch.js`, and **every call passes `allowedHosts`** — the Set of hostnames the response (and any redirect hop) may come from. Never call `fetch`/`undici` directly in a site module.
+- `allowedHosts` for an API-backed site is the API host (e.g. `cdn.syndication.twimg.com`), not the user-facing site host. For a scrape it's the site's `*_HOSTS`.
+- URLs from the request body are parsed with `parseHttpUrl` / `parseAllowedUrl` (`lib/validateUrl.js`), never bare `new URL()`.
+- Anything derived from upstream content that a consumer will fetch (image URLs) goes through `sanitizeImageUrl` — `buildUnfurlResponse` already does this for `image`.
+- Don't add a regex over a whole HTML body; `lib/ogScrape.js` deliberately scans only `<head>` with non-nested patterns to stay linear-time.
 
 ## Response envelope
 
@@ -37,4 +45,5 @@ No HTML-parsing library is used — `lib/ogScrape.js` extracts `<meta>` OpenGrap
 - Before implementing a new site's fetch logic, identify which of three tiers it falls into and say so in a comment: **official public API** (reddit/tiktok/bsky-style — no auth), **documented-but-unofficial endpoint** (twitter-style — note it can break without notice), or **best-effort OG scrape** (instagram/facebook-style — expect frequent `ok:false`). Don't silently assume a scrape will be reliable.
 - Never invent an API shape, field name, or endpoint you haven't verified — check the actual response (via a real request, not memory) before writing the parser. Upstream API shapes drift (see TikTok oEmbed no longer always including `title`); write code tolerant of missing optional fields rather than assuming the first response you saw is the stable shape.
 - Keep `PREVIEW_LIMITS` in `lib/previewFormat.js` as the one place truncation lengths live — don't hardcode a length inline in a site module.
-- Don't add auth, caching, or a database to this service without being asked — it is deliberately a stateless, no-auth, reverse-proxied unfurl-only service (see root `README.md`).
+- Don't add auth or a database to this service without being asked — it is deliberately a no-auth, reverse-proxied unfurl-only service (see root `README.md`). Caching (`lib/cache.js`, memory or redis) and per-IP rate limiting (`lib/rateLimit.js`) already exist; tune them via `.env`, don't add a second layer.
+- New env knobs go in `config.js` (parsed with `intEnv`/`isEnabled`) **and** `.env.example` with a comment — never read `process.env` elsewhere.

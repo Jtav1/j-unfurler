@@ -1,8 +1,10 @@
 import { Router } from "express";
 import { extractUrl, parseAllowedUrl } from "../lib/validateUrl.js";
+import { runUnfurl } from "../lib/unfurlRunner.js";
 import { unfurlBsky, BSKY_HOSTS } from "../lib/sites/bsky.js";
 
 const router = Router();
+const entry = { site: "bsky", unfurl: unfurlBsky };
 
 /**
  * POST /api/unfurl/bsky
@@ -17,7 +19,8 @@ router.post("/", async (req, res) => {
   if (!parsedUrl) return res.status(400).json({ ok: false, error: "url is not a bsky.app link" });
 
   try {
-    const { status, body } = await unfurlBsky(parsedUrl, req.requestingService);
+    const { status, body, cached } = await runUnfurl(entry, parsedUrl, req.requestingService);
+    res.set("X-Cache", cached ? "HIT" : "MISS");
     res.status(status).json(body);
   } catch (err) {
     console.error("POST /api/unfurl/bsky error:", err);

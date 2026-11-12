@@ -1,8 +1,10 @@
 import { Router } from "express";
 import { extractUrl, parseAllowedUrl } from "../lib/validateUrl.js";
+import { runUnfurl } from "../lib/unfurlRunner.js";
 import { unfurlInstagram, INSTAGRAM_HOSTS } from "../lib/sites/instagram.js";
 
 const router = Router();
+const entry = { site: "instagram", unfurl: unfurlInstagram };
 
 /**
  * POST /api/unfurl/instagram
@@ -18,7 +20,8 @@ router.post("/", async (req, res) => {
   if (!parsedUrl) return res.status(400).json({ ok: false, error: "url is not an instagram.com link" });
 
   try {
-    const { status, body } = await unfurlInstagram(parsedUrl, req.requestingService);
+    const { status, body, cached } = await runUnfurl(entry, parsedUrl, req.requestingService);
+    res.set("X-Cache", cached ? "HIT" : "MISS");
     res.status(status).json(body);
   } catch (err) {
     console.error("POST /api/unfurl/instagram error:", err);

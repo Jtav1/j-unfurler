@@ -1,8 +1,10 @@
 import { Router } from "express";
 import { extractUrl, parseAllowedUrl } from "../lib/validateUrl.js";
+import { runUnfurl } from "../lib/unfurlRunner.js";
 import { unfurlReddit, REDDIT_HOSTS } from "../lib/sites/reddit.js";
 
 const router = Router();
+const entry = { site: "reddit", unfurl: unfurlReddit };
 
 /**
  * POST /api/unfurl/reddit
@@ -17,7 +19,8 @@ router.post("/", async (req, res) => {
   if (!parsedUrl) return res.status(400).json({ ok: false, error: "url is not a reddit.com/redd.it link" });
 
   try {
-    const { status, body } = await unfurlReddit(parsedUrl, req.requestingService);
+    const { status, body, cached } = await runUnfurl(entry, parsedUrl, req.requestingService);
+    res.set("X-Cache", cached ? "HIT" : "MISS");
     res.status(status).json(body);
   } catch (err) {
     console.error("POST /api/unfurl/reddit error:", err);
